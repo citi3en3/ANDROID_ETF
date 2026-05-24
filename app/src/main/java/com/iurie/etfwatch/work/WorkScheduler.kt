@@ -8,13 +8,22 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.iurie.etfwatch.data.prefs.UserPrefs
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class WorkScheduler @Inject constructor(@ApplicationContext private val ctx: Context) {
+class WorkScheduler @Inject constructor(
+    @ApplicationContext private val ctx: Context,
+    private val prefs: UserPrefs,
+) {
+
+    suspend fun schedulePeriodicRefreshFromPrefs() {
+        schedulePeriodicRefresh(prefs.refreshIntervalMinutes.first().toLong())
+    }
 
     fun schedulePeriodicRefresh(intervalMinutes: Long = 30L) {
         val constraints = Constraints.Builder()

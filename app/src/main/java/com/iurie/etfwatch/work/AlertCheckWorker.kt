@@ -18,16 +18,16 @@ import androidx.work.WorkerParameters
 import com.iurie.etfwatch.data.repo.AlertRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import dagger.hilt.android.qualifiers.ApplicationContext
 import timber.log.Timber
 
 @HiltWorker
 class AlertCheckWorker @AssistedInject constructor(
     @Assisted appContext: Context,
     @Assisted params: WorkerParameters,
-    @ApplicationContext private val ctx: Context,
     private val alertRepo: AlertRepository,
 ) : CoroutineWorker(appContext, params) {
+
+    private val ctx: Context get() = applicationContext
 
     override suspend fun doWork(): Result = runCatching {
         ensureChannel()
