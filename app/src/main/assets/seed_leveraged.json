@@ -1,0 +1,43 @@
+[
+  { "ticker": "TQQQ", "name": "ProShares UltraPro QQQ", "exchange": "NASDAQ", "sector": "Tech / Nasdaq 100", "leverageFactor": 3 },
+  { "ticker": "SQQQ", "name": "ProShares UltraPro Short QQQ", "exchange": "NASDAQ", "sector": "Tech / Nasdaq 100 (Inverse)", "leverageFactor": -3 },
+  { "ticker": "QLD",  "name": "ProShares Ultra QQQ",            "exchange": "NYSEARCA", "sector": "Tech / Nasdaq 100", "leverageFactor": 2 },
+
+  { "ticker": "SPXL", "name": "Direxion Daily S&P 500 Bull 3X", "exchange": "NYSEARCA", "sector": "Broad Market / S&P 500", "leverageFactor": 3 },
+  { "ticker": "UPRO", "name": "ProShares UltraPro S&P 500",     "exchange": "NYSEARCA", "sector": "Broad Market / S&P 500", "leverageFactor": 3 },
+  { "ticker": "SSO",  "name": "ProShares Ultra S&P 500",        "exchange": "NYSEARCA", "sector": "Broad Market / S&P 500", "leverageFactor": 2 },
+  { "ticker": "SPXS", "name": "Direxion Daily S&P 500 Bear 3X", "exchange": "NYSEARCA", "sector": "Broad Market / S&P 500 (Inverse)", "leverageFactor": -3 },
+
+  { "ticker": "SOXL", "name": "Direxion Daily Semiconductor Bull 3X", "exchange": "NYSEARCA", "sector": "Semiconductors", "leverageFactor": 3 },
+  { "ticker": "SOXS", "name": "Direxion Daily Semiconductor Bear 3X", "exchange": "NYSEARCA", "sector": "Semiconductors (Inverse)", "leverageFactor": -3 },
+
+  { "ticker": "TNA",  "name": "Direxion Daily Small Cap Bull 3X", "exchange": "NYSEARCA", "sector": "Small Cap / Russell 2000", "leverageFactor": 3 },
+  { "ticker": "TZA",  "name": "Direxion Daily Small Cap Bear 3X", "exchange": "NYSEARCA", "sector": "Small Cap / Russell 2000 (Inverse)", "leverageFactor": -3 },
+
+  { "ticker": "FAS",  "name": "Direxion Daily Financial Bull 3X", "exchange": "NYSEARCA", "sector": "Financials", "leverageFactor": 3 },
+  { "ticker": "FAZ",  "name": "Direxion Daily Financial Bear 3X", "exchange": "NYSEARCA", "sector": "Financials (Inverse)", "leverageFactor": -3 },
+
+  { "ticker": "ERX",  "name": "Direxion Daily Energy Bull 2X",    "exchange": "NYSEARCA", "sector": "Energy", "leverageFactor": 2 },
+  { "ticker": "ERY",  "name": "Direxion Daily Energy Bear 2X",    "exchange": "NYSEARCA", "sector": "Energy (Inverse)", "leverageFactor": -2 },
+  { "ticker": "GUSH", "name": "Direxion Daily S&P Oil & Gas E&P Bull 2X", "exchange": "NYSEARCA", "sector": "Energy", "leverageFactor": 2 },
+
+  { "ticker": "TMF",  "name": "Direxion Daily 20+ Year Treasury Bull 3X", "exchange": "NYSEARCA", "sector": "Bonds / Long Treasuries", "leverageFactor": 3 },
+  { "ticker": "TMV",  "name": "Direxion Daily 20+ Year Treasury Bear 3X", "exchange": "NYSEARCA", "sector": "Bonds / Long Treasuries (Inverse)", "leverageFactor": -3 },
+
+  { "ticker": "NUGT", "name": "Direxion Daily Gold Miners Bull 2X", "exchange": "NYSEARCA", "sector": "Gold / Miners", "leverageFactor": 2 },
+  { "ticker": "DUST", "name": "Direxion Daily Gold Miners Bear 2X", "exchange": "NYSEARCA", "sector": "Gold / Miners (Inverse)", "leverageFactor": -2 },
+  { "ticker": "JNUG", "name": "Direxion Daily Junior Gold Miners Bull 2X", "exchange": "NYSEARCA", "sector": "Gold / Junior Miners", "leverageFactor": 2 },
+
+  { "ticker": "BITX", "name": "Volatility Shares 2x Bitcoin Strategy ETF", "exchange": "NYSEARCA", "sector": "Crypto / Bitcoin", "leverageFactor": 2 },
+  { "ticker": "ETHU", "name": "ProShares Ultra Ether ETF", "exchange": "NYSEARCA", "sector": "Crypto / Ethereum", "leverageFactor": 2 },
+
+  { "ticker": "HQU.TO", "name": "BetaPro NASDAQ-100 2x Daily Bull ETF",  "exchange": "TSX", "sector": "Tech / Nasdaq 100", "leverageFactor": 2 },
+  { "ticker": "HQD.TO", "name": "BetaPro NASDAQ-100 -2x Daily Bear ETF", "exchange": "TSX", "sector": "Tech / Nasdaq 100 (Inverse)", "leverageFactor": -2 },
+  { "ticker": "HSU.TO", "name": "BetaPro S&P 500 2x Daily Bull ETF",     "exchange": "TSX", "sector": "Broad Market / S&P 500", "leverageFactor": 2 },
+  { "ticker": "HSD.TO", "name": "BetaPro S&P 500 -2x Daily Bear ETF",    "exchange": "TSX", "sector": "Broad Market / S&P 500 (Inverse)", "leverageFactor": -2 },
+  { "ticker": "HXU.TO", "name": "BetaPro S&P/TSX 60 2x Daily Bull ETF",  "exchange": "TSX", "sector": "Canada / TSX 60", "leverageFactor": 2 },
+  { "ticker": "HXD.TO", "name": "BetaPro S&P/TSX 60 -2x Daily Bear ETF", "exchange": "TSX", "sector": "Canada / TSX 60 (Inverse)", "leverageFactor": -2 },
+  { "ticker": "HEU.TO", "name": "BetaPro Canadian Gold Miners 2x Daily Bull ETF", "exchange": "TSX", "sector": "Gold / Canadian Miners", "leverageFactor": 2 },
+  { "ticker": "HOU.TO", "name": "BetaPro Crude Oil 2x Daily Bull ETF",   "exchange": "TSX", "sector": "Energy / Crude Oil", "leverageFactor": 2 },
+  { "ticker": "HOD.TO", "name": "BetaPro Crude Oil -2x Daily Bear ETF",  "exchange": "TSX", "sector": "Energy / Crude Oil (Inverse)", "leverageFactor": -2 }
+]

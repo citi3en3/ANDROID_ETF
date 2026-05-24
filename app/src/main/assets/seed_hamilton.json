@@ -1,0 +1,22 @@
+[
+  { "ticker": "HDIV.TO", "name": "Hamilton Enhanced Multi-Sector Covered Call ETF", "exchange": "TSX", "sector": "Covered Call / Multi-Sector" },
+  { "ticker": "HMAX.TO", "name": "Hamilton Canadian Financials Yield Maximizer ETF", "exchange": "TSX", "sector": "Financials" },
+  { "ticker": "UMAX.TO", "name": "Hamilton Utilities Yield Maximizer ETF", "exchange": "TSX", "sector": "Utilities" },
+  { "ticker": "QMAX.TO", "name": "Hamilton Tech Yield Maximizer ETF", "exchange": "TSX", "sector": "Technology" },
+  { "ticker": "SMAX.TO", "name": "Hamilton S&P 500 Index Yield Maximizer ETF", "exchange": "TSX", "sector": "Broad Market" },
+  { "ticker": "EMAX.TO", "name": "Hamilton Energy Yield Maximizer ETF", "exchange": "TSX", "sector": "Energy" },
+  { "ticker": "BMAX.TO", "name": "Hamilton Bond Yield Maximizer ETF", "exchange": "TSX", "sector": "Bonds" },
+  { "ticker": "HYLD.TO", "name": "Hamilton Enhanced U.S. Covered Call ETF", "exchange": "TSX", "sector": "Covered Call / US" },
+  { "ticker": "HBND.TO", "name": "Hamilton U.S. Bond Yield Maximizer ETF", "exchange": "TSX", "sector": "Bonds" },
+  { "ticker": "HFIN.TO", "name": "Hamilton Enhanced Canadian Financials ETF", "exchange": "TSX", "sector": "Financials" },
+  { "ticker": "HUTS.TO", "name": "Hamilton Enhanced Utilities ETF", "exchange": "TSX", "sector": "Utilities" },
+  { "ticker": "HEQT.TO", "name": "Hamilton Enhanced Equity ETF", "exchange": "TSX", "sector": "Equity" },
+  { "ticker": "HCAL.TO", "name": "Hamilton Enhanced Canadian Bank ETF", "exchange": "TSX", "sector": "Financials / Banks" },
+  { "ticker": "HBIT.TO", "name": "Hamilton Bitcoin Yield Maximizer ETF", "exchange": "TSX", "sector": "Crypto" },
+  { "ticker": "AMAX.TO", "name": "Hamilton AI Yield Maximizer ETF", "exchange": "TSX", "sector": "Technology / AI" },
+  { "ticker": "RMAX.TO", "name": "Hamilton REIT Yield Maximizer ETF", "exchange": "TSX", "sector": "Real Estate" },
+  { "ticker": "GLCC.TO", "name": "Hamilton Gold Producer Yield Maximizer ETF", "exchange": "TSX", "sector": "Gold / Materials" },
+  { "ticker": "HUTL.TO", "name": "Hamilton Enhanced Utilities ETF", "exchange": "TSX", "sector": "Utilities" },
+  { "ticker": "HBFG.TO", "name": "Hamilton Global Financials ETF", "exchange": "TSX", "sector": "Financials / Global" },
+  { "ticker": "HBG.TO", "name": "Hamilton Global Bank ETF", "exchange": "TSX", "sector": "Financials / Banks" }
+]
