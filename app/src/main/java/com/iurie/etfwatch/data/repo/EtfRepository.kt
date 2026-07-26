@@ -58,7 +58,7 @@ class EtfRepository @Inject constructor(
         val tickers = etfDao.tickersToRefresh()
         if (tickers.isNotEmpty()) {
             runCatching { quoteRepo.refresh(tickers) }
-            quoteRepo.refreshPricesFromYahoo(tickers)
+            quoteRepo.refreshReturnsFromFmp(tickers)
         }
         refreshHamiltonYields()
     }
@@ -69,7 +69,7 @@ class EtfRepository @Inject constructor(
         val hamiltonTickers = etfDao.all().filter { it.isHamilton }.map { it.ticker }
         if (hamiltonTickers.isNotEmpty()) {
             runCatching { quoteRepo.refresh(hamiltonTickers) }
-            quoteRepo.refreshPricesFromYahoo(hamiltonTickers)
+            quoteRepo.refreshReturnsFromFmp(hamiltonTickers)
         }
     }
 

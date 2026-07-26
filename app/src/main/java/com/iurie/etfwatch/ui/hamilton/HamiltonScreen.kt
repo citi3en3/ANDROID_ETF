@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -17,6 +18,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,7 +34,12 @@ import com.iurie.etfwatch.ui.common.SortMode
 private val hamiltonSortModes = listOf(
     SortMode.Sector,
     SortMode.Yield,
+    SortMode.Week1Return,
+    SortMode.Week2Return,
+    SortMode.Week3Return,
+    SortMode.Week5Return,
     SortMode.MonthReturn,
+    SortMode.TwoMonthReturn,
     SortMode.Price,
     SortMode.ChangePct,
     SortMode.Ticker,
@@ -45,6 +52,8 @@ fun HamiltonScreen(
     vm: HamiltonViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.sort, state.sectorFilters) { listState.scrollToItem(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -74,7 +83,7 @@ fun HamiltonScreen(
                         Text("No Hamilton ETFs loaded — pull to refresh.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 } else {
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(Modifier.fillMaxSize(), state = listState) {
                         if (state.sort == SortMode.Sector) {
                             state.grouped.toSortedMap().forEach { (sector, items) ->
                                 stickyHeader(key = "h_$sector") {
@@ -90,12 +99,12 @@ fun HamiltonScreen(
                                     )
                                 }
                                 items(items, key = { it.etf.ticker }) { item ->
-                                    EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) })
+                                    EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) }, highlight = state.sort)
                                 }
                             }
                         } else {
                             items(state.flat, key = { it.etf.ticker }) { item ->
-                                EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) })
+                                EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) }, highlight = state.sort)
                             }
                         }
                     }

@@ -39,6 +39,7 @@ fun tickerBadgeColor(ticker: String): Color =
 fun EtfRow(
     item: EtfWithQuote,
     onClick: () -> Unit,
+    highlight: SortMode? = null,
 ) {
     val change = item.quote?.changePct
     val changeColor = when {
@@ -85,9 +86,6 @@ fun EtfRow(
                 item.etf.sector?.let { add(it) }
                 if (item.etf.isLeveraged && item.etf.leverageFactor != null) add("${item.etf.leverageFactor}x")
                 item.quote?.dividendYield?.let { add("Yld ${"%.2f".format(it)}%") }
-                item.quote?.monthReturnPct?.let { m ->
-                    add("1M ${if (m >= 0) "+" else ""}${"%.2f".format(m)}%")
-                }
             }
             if (meta.isNotEmpty()) {
                 Text(
@@ -99,9 +97,24 @@ fun EtfRow(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+            // Returns get their own line(s); the sorted period leads so it is never
+            // the one truncated away.
+            val returns = returnPeriods(item, highlight)
+            if (returns.isNotEmpty()) {
+                Text(
+                    returns.joinToString("  ") { (label, v) ->
+                        "$label ${if (v >= 0) "+" else ""}${"%.2f".format(v)}%"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
         Spacer(Modifier.width(12.dp))
-        // Price + change
+        // Price + change (+ the sorted return, so it reads next to the value it ranked on)
         Column(horizontalAlignment = Alignment.End) {
             Text(
                 item.quote?.price?.let { "%.2f".format(it) } ?: "—",
@@ -113,7 +126,47 @@ fun EtfRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = changeColor,
             )
+            highlightedReturn(item, highlight)?.let { (label, v) ->
+                Text(
+                    "$label ${if (v >= 0) "+" else ""}${"%.2f".format(v)}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (v >= 0) Color(0xFF1B873B) else Color(0xFFD32F2F),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
         }
     }
+}
+
+/** Label + value for the period the list is currently sorted by, if it is a return period. */
+private fun highlightedReturn(item: EtfWithQuote, highlight: SortMode?): Pair<String, Double>? {
+    val q = item.quote ?: return null
+    val value = when (highlight) {
+        SortMode.Week1Return -> q.week1ReturnPct
+        SortMode.Week2Return -> q.week2ReturnPct
+        SortMode.Week3Return -> q.week3ReturnPct
+        SortMode.Week5Return -> q.week5ReturnPct
+        SortMode.MonthReturn -> q.monthReturnPct
+        SortMode.TwoMonthReturn -> q.twoMonthReturnPct
+        else -> null
+    } ?: return null
+    return highlight!!.label.removeSuffix(" %") to value
+}
+
+/** All available return periods, with the sorted one moved to the front. */
+private fun returnPeriods(item: EtfWithQuote, highlight: SortMode?): List<Pair<String, Double>> {
+    val q = item.quote ?: return emptyList()
+    val all = listOf(
+        SortMode.Week1Return to q.week1ReturnPct,
+        SortMode.Week2Return to q.week2ReturnPct,
+        SortMode.Week3Return to q.week3ReturnPct,
+        SortMode.Week5Return to q.week5ReturnPct,
+        SortMode.MonthReturn to q.monthReturnPct,
+        SortMode.TwoMonthReturn to q.twoMonthReturnPct,
+    )
+    return all
+        .sortedByDescending { (mode, _) -> mode == highlight }
+        .mapNotNull { (mode, v) -> v?.let { mode.label.removeSuffix(" %") to it } }
 }
 

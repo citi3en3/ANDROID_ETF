@@ -15,7 +15,12 @@ private const val JOIN_COLS = """
     q.dividend_yield AS q_dividend_yield,
     q.market_cap AS q_market_cap,
     q.updated_at AS q_updated_at,
-    q.month_return_pct AS q_month_return_pct
+    q.month_return_pct AS q_month_return_pct,
+    q.two_month_return_pct AS q_two_month_return_pct,
+    q.week1_return_pct AS q_week1_return_pct,
+    q.week2_return_pct AS q_week2_return_pct,
+    q.week3_return_pct AS q_week3_return_pct,
+    q.week5_return_pct AS q_week5_return_pct
 """
 
 @Dao

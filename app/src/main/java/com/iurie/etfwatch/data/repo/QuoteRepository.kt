@@ -4,7 +4,6 @@ import com.iurie.etfwatch.data.db.QuoteDao
 import com.iurie.etfwatch.data.db.QuoteEntity
 import com.iurie.etfwatch.data.remote.FmpService
 import com.iurie.etfwatch.data.remote.HistoricalPoint
-import com.iurie.etfwatch.data.remote.YahooService
 import com.iurie.etfwatch.ui.common.ChartPoint
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
@@ -19,7 +18,6 @@ import javax.inject.Singleton
 class QuoteRepository @Inject constructor(
     private val quoteDao: QuoteDao,
     private val fmp: FmpService,
-    private val yahoo: YahooService,
 ) {
 
     /** FMP supports comma-separated symbols on /quote — batch to stay within free-tier limits. */
@@ -30,12 +28,18 @@ class QuoteRepository @Inject constructor(
                 .onSuccess { quotes ->
                     val now = System.currentTimeMillis()
                     val rows = quotes.map { q ->
+                        // copy() so the separately-refreshed return columns survive a quote refresh.
                         val existing = quoteDao.byTicker(q.symbol)
-                        QuoteEntity(
+                        existing?.copy(
+                            price = q.price,
+                            changePct = q.changesPercentage,
+                            marketCap = q.marketCap,
+                            updatedAt = now,
+                        ) ?: QuoteEntity(
                             ticker = q.symbol,
                             price = q.price,
                             changePct = q.changesPercentage,
-                            dividendYield = existing?.dividendYield,
+                            dividendYield = null,
                             marketCap = q.marketCap,
                             updatedAt = now,
                         )
@@ -78,29 +82,39 @@ class QuoteRepository @Inject constructor(
         )
     }
 
-    /** Fetches price + day change + 1-month return from Yahoo Finance. */
-    suspend fun refreshPricesFromYahoo(tickers: List<String>) = coroutineScope {
+    /**
+     * Fetches 1W/2W/3W/5W/1M/2M return from FMP's historical daily closes.
+     * One call per ticker (FMP has no batch historical endpoint), parallelized via async/awaitAll.
+     */
+    suspend fun refreshReturnsFromFmp(tickers: List<String>) = coroutineScope {
         if (tickers.isEmpty()) return@coroutineScope
         val now = System.currentTimeMillis()
+        val to = LocalDate.now(ZoneOffset.UTC)
+        val from = to.minusDays(75) // buffer past 60 days to cover weekends/holidays
+        val nowEpochDay = to.toEpochDay()
         val rows = tickers.map { t ->
             async {
                 runCatching {
-                    val result = yahoo.chart(t).chart?.result?.firstOrNull() ?: return@async null
-                    val meta = result.meta ?: return@async null
-                    val price = meta.regularMarketPrice ?: return@async null
-                    val prev = meta.previousClose ?: meta.chartPreviousClose
-                    val changePct = if (prev != null && prev > 0.0) ((price - prev) / prev) * 100.0 else null
-                    val closes = result.indicators?.quote?.firstOrNull()?.close?.filterNotNull().orEmpty()
-                    val firstClose = closes.firstOrNull()
-                    val monthReturn = if (firstClose != null && firstClose > 0.0) ((price - firstClose) / firstClose) * 100.0 else null
-                    val existing = quoteDao.byTicker(t)
-                    existing?.copy(
-                        price = price,
-                        changePct = changePct,
-                        monthReturnPct = monthReturn ?: existing.monthReturnPct,
+                    val existing = quoteDao.byTicker(t) ?: return@async null
+                    val price = existing.price ?: return@async null
+                    val series = fmp.historical(t, from.toString(), to.toString()).historical.orEmpty()
+                        .mapNotNull { p -> runCatching { LocalDate.parse(p.date.take(10)).toEpochDay() to p.close }.getOrNull() }
+                    if (series.isEmpty()) return@async null
+                    fun returnSince(daysAgo: Long): Double? {
+                        val targetDay = nowEpochDay - daysAgo
+                        val close = series.minByOrNull { kotlin.math.abs(it.first - targetDay) }?.second
+                        return if (close != null && close > 0.0) ((price - close) / close) * 100.0 else null
+                    }
+                    existing.copy(
+                        monthReturnPct = returnSince(30) ?: existing.monthReturnPct,
+                        twoMonthReturnPct = returnSince(60) ?: existing.twoMonthReturnPct,
+                        week1ReturnPct = returnSince(7) ?: existing.week1ReturnPct,
+                        week2ReturnPct = returnSince(14) ?: existing.week2ReturnPct,
+                        week3ReturnPct = returnSince(21) ?: existing.week3ReturnPct,
+                        week5ReturnPct = returnSince(35) ?: existing.week5ReturnPct,
                         updatedAt = now,
-                    ) ?: QuoteEntity(t, price, changePct, null, null, now, monthReturn)
-                }.onFailure { Timber.w(it, "Yahoo chart failed for $t") }.getOrNull()
+                    )
+                }.onFailure { Timber.w(it, "FMP historical failed for $t") }.getOrNull()
             }
         }.awaitAll().filterNotNull()
         if (rows.isNotEmpty()) quoteDao.upsertAll(rows)

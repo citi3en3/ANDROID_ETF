@@ -14,8 +14,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -29,7 +31,12 @@ import com.iurie.etfwatch.ui.common.SortMode
 
 private val leveragedSortModes = listOf(
     SortMode.Sector,
+    SortMode.Week1Return,
+    SortMode.Week2Return,
+    SortMode.Week3Return,
+    SortMode.Week5Return,
     SortMode.MonthReturn,
+    SortMode.TwoMonthReturn,
     SortMode.Price,
     SortMode.ChangePct,
     SortMode.Yield,
@@ -50,6 +57,8 @@ fun LeveragedScreen(
     vm: LeveragedViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.sort, state.filters) { listState.scrollToItem(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
@@ -70,7 +79,7 @@ fun LeveragedScreen(
                 onRefresh = vm::refresh,
                 modifier = Modifier.fillMaxSize(),
             ) {
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(Modifier.fillMaxSize(), state = listState) {
                     if (state.sort == SortMode.Sector) {
                         state.grouped.toSortedMap().forEach { (sector, items) ->
                             stickyHeader(key = "h_$sector") {
@@ -86,12 +95,12 @@ fun LeveragedScreen(
                                 )
                             }
                             items(items, key = { it.etf.ticker }) { item ->
-                                EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) })
+                                EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) }, highlight = state.sort)
                             }
                         }
                     } else {
                         items(state.flat, key = { it.etf.ticker }) { item ->
-                            EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) })
+                            EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) }, highlight = state.sort)
                         }
                     }
                 }

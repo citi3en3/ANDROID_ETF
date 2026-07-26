@@ -78,5 +78,10 @@ private fun List<EtfWithQuote>.sortedBy(mode: SortMode): List<EtfWithQuote> = wh
     SortMode.ChangePct -> sortedByDescending { it.quote?.changePct ?: Double.NEGATIVE_INFINITY }
     SortMode.Yield -> sortedByDescending { it.quote?.dividendYield ?: Double.NEGATIVE_INFINITY }
     SortMode.MonthReturn -> sortedByDescending { it.quote?.monthReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.TwoMonthReturn -> sortedByDescending { it.quote?.twoMonthReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.Week1Return -> sortedByDescending { it.quote?.week1ReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.Week2Return -> sortedByDescending { it.quote?.week2ReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.Week3Return -> sortedByDescending { it.quote?.week3ReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.Week5Return -> sortedByDescending { it.quote?.week5ReturnPct ?: Double.NEGATIVE_INFINITY }
     SortMode.Sector -> sortedBy { it.etf.sector ?: "zzz" }
 }

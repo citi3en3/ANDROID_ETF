@@ -15,6 +15,11 @@ import androidx.compose.ui.unit.dp
 enum class SortMode(val label: String) {
     Sector("Sector"),
     MonthReturn("1M %"),
+    TwoMonthReturn("2M %"),
+    Week1Return("1W %"),
+    Week2Return("2W %"),
+    Week3Return("3W %"),
+    Week5Return("5W %"),
     Ticker("A→Z"),
     Inverse("Inverse"),
     NonInverse("Non-Inverse"),

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -27,6 +28,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +48,8 @@ fun WatchlistScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showAdd by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(state.sort) { listState.scrollToItem(0) }
 
     Scaffold(
         containerColor = androidx.compose.material3.MaterialTheme.colorScheme.background,
@@ -72,11 +76,11 @@ fun WatchlistScreen(
                 if (state.items.isEmpty()) {
                     EmptyState(text = "Tap + to add an ETF to your watchlist")
                 } else {
-                    LazyColumn(Modifier.fillMaxSize()) {
+                    LazyColumn(Modifier.fillMaxSize(), state = listState) {
                         items(state.items, key = { it.etf.ticker }) { item ->
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                 Box(Modifier.weight(1f)) {
-                                    EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) })
+                                    EtfRow(item, onClick = { onOpenDetail(item.etf.ticker) }, highlight = state.sort)
                                 }
                                 IconButton(onClick = { vm.remove(item.etf.ticker) }) {
                                     Icon(Icons.Filled.Delete, "Remove")

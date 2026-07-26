@@ -41,6 +41,11 @@ class HamiltonViewModel @Inject constructor(
             val filtered = items.filter { (it.etf.sector ?: "Other") in effectiveFilter }
             val sortedFlat = when (s) {
                 SortMode.MonthReturn -> filtered.sortedByDescending { it.quote?.monthReturnPct ?: Double.NEGATIVE_INFINITY }
+                SortMode.TwoMonthReturn -> filtered.sortedByDescending { it.quote?.twoMonthReturnPct ?: Double.NEGATIVE_INFINITY }
+                SortMode.Week1Return -> filtered.sortedByDescending { it.quote?.week1ReturnPct ?: Double.NEGATIVE_INFINITY }
+                SortMode.Week2Return -> filtered.sortedByDescending { it.quote?.week2ReturnPct ?: Double.NEGATIVE_INFINITY }
+                SortMode.Week3Return -> filtered.sortedByDescending { it.quote?.week3ReturnPct ?: Double.NEGATIVE_INFINITY }
+                SortMode.Week5Return -> filtered.sortedByDescending { it.quote?.week5ReturnPct ?: Double.NEGATIVE_INFINITY }
                 SortMode.Ticker -> filtered.sortedBy { it.etf.ticker }
                 SortMode.Price -> filtered.sortedByDescending { it.quote?.price ?: Double.NEGATIVE_INFINITY }
                 SortMode.ChangePct -> filtered.sortedByDescending { it.quote?.changePct ?: Double.NEGATIVE_INFINITY }

@@ -27,6 +27,11 @@ data class QuoteEntity(
     @ColumnInfo(name = "market_cap") val marketCap: Double?,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
     @ColumnInfo(name = "month_return_pct") val monthReturnPct: Double? = null,
+    @ColumnInfo(name = "two_month_return_pct") val twoMonthReturnPct: Double? = null,
+    @ColumnInfo(name = "week1_return_pct") val week1ReturnPct: Double? = null,
+    @ColumnInfo(name = "week2_return_pct") val week2ReturnPct: Double? = null,
+    @ColumnInfo(name = "week3_return_pct") val week3ReturnPct: Double? = null,
+    @ColumnInfo(name = "week5_return_pct") val week5ReturnPct: Double? = null,
 )
 
 @Entity(tableName = "alerts")
