@@ -3,6 +3,7 @@ package com.iurie.etfwatch.di
 import android.content.Context
 import com.iurie.etfwatch.BuildConfig
 import com.iurie.etfwatch.data.remote.FmpService
+import com.iurie.etfwatch.data.remote.YahooService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
@@ -61,4 +62,28 @@ object NetworkModule {
 
     @Provides @Singleton
     fun fmp(retrofit: Retrofit): FmpService = retrofit.create(FmpService::class.java)
+
+    @Provides @Singleton
+    fun yahoo(@ApplicationContext ctx: Context, moshi: Moshi): YahooService {
+        val cache = Cache(ctx.cacheDir.resolve("yahoo"), 5L * 1024 * 1024)
+        val ua = Interceptor { chain ->
+            chain.proceed(
+                chain.request().newBuilder()
+                    .header("User-Agent", "Mozilla/5.0 (Android) EtfWatch/0.1")
+                    .build()
+            )
+        }
+        val client = OkHttpClient.Builder()
+            .cache(cache)
+            .addInterceptor(ua)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+        return Retrofit.Builder()
+            .baseUrl("https://query1.finance.yahoo.com/".toHttpUrl())
+            .client(client)
+            .addConverterFactory(MoshiConverterFactory.create(moshi))
+            .build()
+            .create(YahooService::class.java)
+    }
 }

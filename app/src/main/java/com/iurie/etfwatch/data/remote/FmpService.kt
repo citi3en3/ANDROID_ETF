@@ -22,7 +22,7 @@ interface FmpService {
         @Path("symbol") symbol: String,
         @Query("from") from: String? = null,
         @Query("to") to: String? = null,
-        @Query("serietype") serieType: String = "line",
+        @Query("serietype") serieType: String? = null,
     ): HistoricalResponse
 
     @GET("search")

@@ -30,11 +30,10 @@ class SeedLoader @Inject constructor(
     private val adapter = moshi.adapter<List<SeedEntry>>(listType)
 
     suspend fun seedIfNeeded() {
-        val existing = etfDao.all()
-        val haveHamilton = existing.any { it.isHamilton }
-        val haveLeveraged = existing.any { it.isLeveraged }
-        if (!haveHamilton) load("seed_hamilton.json", isHamilton = true, isLeveraged = false)
-        if (!haveLeveraged) load("seed_leveraged.json", isHamilton = false, isLeveraged = true)
+        // insertAllIgnore is idempotent on the primary key, so running every launch
+        // safely adds any newly shipped tickers without overwriting user changes.
+        load("seed_hamilton.json", isHamilton = true, isLeveraged = false)
+        load("seed_leveraged.json", isHamilton = false, isLeveraged = true)
     }
 
     private suspend fun load(asset: String, isHamilton: Boolean, isLeveraged: Boolean) {

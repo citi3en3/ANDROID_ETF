@@ -3,6 +3,7 @@ package com.iurie.etfwatch
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.iurie.etfwatch.data.repo.EtfRepository
 import com.iurie.etfwatch.work.WorkScheduler
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -17,6 +18,7 @@ class EtfApp : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
     @Inject lateinit var workScheduler: WorkScheduler
+    @Inject lateinit var etfRepository: EtfRepository
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -28,6 +30,11 @@ class EtfApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         if (BuildConfig.DEBUG) Timber.plant(Timber.DebugTree())
-        appScope.launch { workScheduler.schedulePeriodicRefreshFromPrefs() }
+        appScope.launch {
+            runCatching { etfRepository.ensureSeeded() }
+                .onFailure { Timber.e(it, "Seed failed") }
+            workScheduler.schedulePeriodicRefreshFromPrefs()
+            workScheduler.runOnceNow()
+        }
     }
 }

@@ -26,6 +26,7 @@ data class QuoteEntity(
     @ColumnInfo(name = "dividend_yield") val dividendYield: Double?,
     @ColumnInfo(name = "market_cap") val marketCap: Double?,
     @ColumnInfo(name = "updated_at") val updatedAt: Long,
+    @ColumnInfo(name = "month_return_pct") val monthReturnPct: Double? = null,
 )
 
 @Entity(tableName = "alerts")

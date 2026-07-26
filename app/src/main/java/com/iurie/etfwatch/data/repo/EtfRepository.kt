@@ -56,17 +56,41 @@ class EtfRepository @Inject constructor(
     suspend fun refreshAll() {
         ensureSeeded()
         val tickers = etfDao.tickersToRefresh()
-        if (tickers.isNotEmpty()) quoteRepo.refresh(tickers)
+        if (tickers.isNotEmpty()) {
+            runCatching { quoteRepo.refresh(tickers) }
+            quoteRepo.refreshPricesFromYahoo(tickers)
+        }
         refreshHamiltonYields()
+    }
+
+    suspend fun refreshHamilton() {
+        ensureSeeded()
+        refreshHamiltonYields()
+        val hamiltonTickers = etfDao.all().filter { it.isHamilton }.map { it.ticker }
+        if (hamiltonTickers.isNotEmpty()) {
+            runCatching { quoteRepo.refresh(hamiltonTickers) }
+            quoteRepo.refreshPricesFromYahoo(hamiltonTickers)
+        }
     }
 
     private suspend fun refreshHamiltonYields() {
         val scraped = scraper.fetch()
         if (scraped.isEmpty()) return
         scraped.forEach { s ->
-            val existing = etfDao.byTicker(s.ticker) ?: return@forEach
+            val existing = etfDao.byTicker(s.ticker)
+            if (existing == null) {
+                etfDao.upsert(
+                    EtfEntity(
+                        ticker = s.ticker,
+                        name = s.name ?: s.ticker,
+                        exchange = "TSX",
+                        sector = s.sector,
+                        isHamilton = true,
+                    )
+                )
+            }
             if (s.yieldPct != null) {
-                quoteRepo.mergeDividendYield(existing.ticker, s.yieldPct)
+                quoteRepo.mergeDividendYield(s.ticker, s.yieldPct)
             }
         }
     }

@@ -69,7 +69,14 @@ class WatchlistViewModel @Inject constructor(
 
 private fun List<EtfWithQuote>.sortedBy(mode: SortMode): List<EtfWithQuote> = when (mode) {
     SortMode.Ticker -> sortedBy { it.etf.ticker }
+    SortMode.Inverse -> filter { (it.etf.leverageFactor ?: 0) < 0 }.sortedBy { it.etf.ticker }
+    SortMode.NonInverse -> filter { (it.etf.leverageFactor ?: 0) >= 0 }.sortedBy { it.etf.ticker }
+    SortMode.Lev1x -> filter { kotlin.math.abs(it.etf.leverageFactor ?: 1) == 1 }.sortedBy { it.etf.ticker }
+    SortMode.Lev2x -> filter { kotlin.math.abs(it.etf.leverageFactor ?: 0) == 2 }.sortedBy { it.etf.ticker }
+    SortMode.Lev3x -> filter { kotlin.math.abs(it.etf.leverageFactor ?: 0) == 3 }.sortedBy { it.etf.ticker }
     SortMode.Price -> sortedByDescending { it.quote?.price ?: Double.NEGATIVE_INFINITY }
     SortMode.ChangePct -> sortedByDescending { it.quote?.changePct ?: Double.NEGATIVE_INFINITY }
     SortMode.Yield -> sortedByDescending { it.quote?.dividendYield ?: Double.NEGATIVE_INFINITY }
+    SortMode.MonthReturn -> sortedByDescending { it.quote?.monthReturnPct ?: Double.NEGATIVE_INFINITY }
+    SortMode.Sector -> sortedBy { it.etf.sector ?: "zzz" }
 }

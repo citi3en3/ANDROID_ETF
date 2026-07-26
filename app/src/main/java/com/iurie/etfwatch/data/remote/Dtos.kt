@@ -33,6 +33,9 @@ data class HistoricalResponse(
 @JsonClass(generateAdapter = true)
 data class HistoricalPoint(
     val date: String,
+    val open: Double? = null,
+    val high: Double? = null,
+    val low: Double? = null,
     val close: Double,
 )
 
