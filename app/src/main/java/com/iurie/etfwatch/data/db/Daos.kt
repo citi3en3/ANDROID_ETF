@@ -47,6 +47,9 @@ interface EtfDao {
     @Query("DELETE FROM etfs WHERE ticker = :ticker AND isUserAdded = 1")
     suspend fun deleteUserAdded(ticker: String)
 
+    @Query("DELETE FROM etfs WHERE ticker IN (:tickers)")
+    suspend fun deleteTickers(tickers: List<String>)
+
     @Query("""
         SELECT $JOIN_COLS
         FROM etfs e
@@ -93,6 +96,9 @@ interface QuoteDao {
 
     @Query("SELECT * FROM quotes WHERE ticker = :ticker")
     suspend fun byTicker(ticker: String): QuoteEntity?
+
+    @Query("DELETE FROM quotes WHERE ticker IN (:tickers)")
+    suspend fun deleteTickers(tickers: List<String>)
 }
 
 @Dao

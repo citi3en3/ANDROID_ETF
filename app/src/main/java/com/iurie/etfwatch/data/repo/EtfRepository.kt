@@ -3,6 +3,7 @@ package com.iurie.etfwatch.data.repo
 import com.iurie.etfwatch.data.db.EtfDao
 import com.iurie.etfwatch.data.db.EtfEntity
 import com.iurie.etfwatch.data.db.EtfWithQuote
+import com.iurie.etfwatch.data.filter.EtnFilter
 import com.iurie.etfwatch.data.remote.FmpService
 import com.iurie.etfwatch.data.scrape.HamiltonScraper
 import com.iurie.etfwatch.data.seed.SeedLoader
@@ -20,7 +21,22 @@ class EtfRepository @Inject constructor(
     private val seedLoader: SeedLoader,
 ) {
 
-    suspend fun ensureSeeded() = seedLoader.seedIfNeeded()
+    suspend fun ensureSeeded() {
+        seedLoader.seedIfNeeded()
+        purgeEtns()
+    }
+
+    /**
+     * ETNs are never tracked. Installs seeded before that rule (or watchlists built from older
+     * search results) can still hold one, so drop them — and their quotes — on every seed pass.
+     */
+    private suspend fun purgeEtns() {
+        val etns = etfDao.all().filter { EtnFilter.isEtn(it.ticker, it.name) }.map { it.ticker }
+        if (etns.isEmpty()) return
+        etfDao.deleteTickers(etns)
+        quoteRepo.deleteQuotes(etns)
+        Timber.i("Purged ${etns.size} ETN(s): $etns")
+    }
 
     fun watchlist(): Flow<List<EtfWithQuote>> = etfDao.watchlistFlow()
     fun hamilton(): Flow<List<EtfWithQuote>> = etfDao.hamiltonFlow()
@@ -28,6 +44,10 @@ class EtfRepository @Inject constructor(
     fun detail(ticker: String): Flow<EtfWithQuote?> = etfDao.withQuoteFlow(ticker)
 
     suspend fun addToWatchlist(ticker: String, name: String?, exchange: String?) {
+        if (EtnFilter.isEtn(ticker, name)) {
+            Timber.i("Refused to watch $ticker — ETNs are not tracked")
+            return
+        }
         val existing = etfDao.byTicker(ticker)
         if (existing == null) {
             etfDao.upsert(
@@ -50,7 +70,7 @@ class EtfRepository @Inject constructor(
     }
 
     suspend fun search(query: String) = runCatching {
-        fmp.search(query)
+        fmp.search(query).filterNot { EtnFilter.isEtn(it.symbol, it.name) }
     }.onFailure { Timber.w(it, "FMP search failed") }.getOrDefault(emptyList())
 
     suspend fun refreshAll() {
@@ -74,7 +94,7 @@ class EtfRepository @Inject constructor(
     }
 
     private suspend fun refreshHamiltonYields() {
-        val scraped = scraper.fetch()
+        val scraped = scraper.fetch().filterNot { EtnFilter.isEtn(it.ticker, it.name) }
         if (scraped.isEmpty()) return
         scraped.forEach { s ->
             val existing = etfDao.byTicker(s.ticker)

@@ -71,6 +71,10 @@ class QuoteRepository @Inject constructor(
             .orEmpty()
     }
 
+    suspend fun deleteQuotes(tickers: List<String>) {
+        if (tickers.isNotEmpty()) quoteDao.deleteTickers(tickers)
+    }
+
     suspend fun mergeDividendYield(ticker: String, yieldPct: Double) {
         val existing = quoteDao.byTicker(ticker)
         val now = System.currentTimeMillis()

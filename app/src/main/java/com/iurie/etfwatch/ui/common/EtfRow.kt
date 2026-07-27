@@ -85,7 +85,6 @@ fun EtfRow(
             val meta = buildList {
                 item.etf.sector?.let { add(it) }
                 if (item.etf.isLeveraged && item.etf.leverageFactor != null) add("${item.etf.leverageFactor}x")
-                item.quote?.dividendYield?.let { add("Yld ${"%.2f".format(it)}%") }
             }
             if (meta.isNotEmpty()) {
                 Text(
@@ -126,6 +125,15 @@ fun EtfRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = changeColor,
             )
+            item.quote?.dividendYield?.let { y ->
+                Text(
+                    "Yld %.2f%%".format(y),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             highlightedReturn(item, highlight)?.let { (label, v) ->
                 Text(
                     "$label ${if (v >= 0) "+" else ""}${"%.2f".format(v)}%",

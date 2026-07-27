@@ -48,6 +48,11 @@ Single-Activity Compose app, MVVM, Hilt for DI. Package root: `com.iurie.etfwatc
 - `data/scrape/HamiltonScraper.kt` — Jsoup-scrapes hamiltonetfs.com/performance/ for tickers,
   yields, and sector tags (via keyword matching in `SECTOR_RULES`). Always wrapped in
   `runCatching`; scrape failures degrade to whatever is already in the DB / the seed data.
+- `data/filter/EtnFilter.kt` — ETNs are never tracked (the app follows ETFs only). `isEtn()` matches
+  on name (a word-bounded `ETN`, "exchange traded note", or an ETN-only issuer brand such as
+  MicroSectors/iPath/ETRACS/VelocityShares) plus a denylist of US-listed ETN symbols. It gates every
+  entry point: seed load, FMP search results, `addToWatchlist`, and the Hamilton scrape;
+  `EtfRepository.purgeEtns()` also drops any ETN already in the DB on each seed pass.
 - `data/seed/SeedLoader.kt` — loads `assets/seed_hamilton.json` and `assets/seed_leveraged.json`
   on every app launch via `insertAllIgnore` (idempotent upsert-if-absent on primary key), so
   shipping new seed tickers never clobbers user edits (e.g. watchlist flags).

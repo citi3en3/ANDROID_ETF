@@ -55,8 +55,6 @@
   { "ticker": "KOLD", "name": "ProShares UltraShort Bloomberg Natural Gas", "exchange": "NYSEARCA", "sector": "Energy / Natural Gas (Inverse)", "leverageFactor": -2 },
   { "ticker": "UCO",  "name": "ProShares Ultra Bloomberg Crude Oil", "exchange": "NYSEARCA", "sector": "Energy / Crude Oil", "leverageFactor": 2 },
   { "ticker": "SCO",  "name": "ProShares UltraShort Bloomberg Crude Oil", "exchange": "NYSEARCA", "sector": "Energy / Crude Oil (Inverse)", "leverageFactor": -2 },
-  { "ticker": "NRGU", "name": "MicroSectors U.S. Big Oil Index 3X Leveraged ETN", "exchange": "NYSEARCA", "sector": "Energy / Big Oil", "leverageFactor": 3 },
-  { "ticker": "NRGD", "name": "MicroSectors U.S. Big Oil Index -3X Inverse Leveraged ETN", "exchange": "NYSEARCA", "sector": "Energy / Big Oil (Inverse)", "leverageFactor": -3 },
 
   { "ticker": "TMF",  "name": "Direxion Daily 20+ Year Treasury Bull 3X", "exchange": "NYSEARCA", "sector": "Bonds / Long Treasuries", "leverageFactor": 3 },
   { "ticker": "TMV",  "name": "Direxion Daily 20+ Year Treasury Bear 3X", "exchange": "NYSEARCA", "sector": "Bonds / Long Treasuries (Inverse)", "leverageFactor": -3 },

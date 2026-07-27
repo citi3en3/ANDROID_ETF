@@ -3,6 +3,7 @@ package com.iurie.etfwatch.data.seed
 import android.content.Context
 import com.iurie.etfwatch.data.db.EtfDao
 import com.iurie.etfwatch.data.db.EtfEntity
+import com.iurie.etfwatch.data.filter.EtnFilter
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
@@ -39,7 +40,7 @@ class SeedLoader @Inject constructor(
     private suspend fun load(asset: String, isHamilton: Boolean, isLeveraged: Boolean) {
         val json = ctx.assets.open(asset).bufferedReader().use { it.readText() }
         val entries: List<SeedEntry> = adapter.fromJson(json).orEmpty()
-        val rows = entries.map {
+        val rows = entries.filterNot { EtnFilter.isEtn(it.ticker, it.name) }.map {
             EtfEntity(
                 ticker = it.ticker,
                 name = it.name,
