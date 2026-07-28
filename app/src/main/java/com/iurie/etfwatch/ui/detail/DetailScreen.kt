@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -46,11 +47,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.iurie.etfwatch.data.repo.AlertEvaluator
 import com.iurie.etfwatch.ui.common.ChartStyle
+import com.iurie.etfwatch.ui.common.Format
 import com.iurie.etfwatch.ui.common.MpCandleChart
+import com.iurie.etfwatch.ui.theme.TrendColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,17 +100,17 @@ fun DetailScreen(
         Column(Modifier.padding(pad).fillMaxWidth().verticalScroll(rememberScrollState())) {
             val q = state.etf?.quote
             val change = q?.changePct
-            val color = when {
-                change == null -> MaterialTheme.colorScheme.onSurface
-                change >= 0 -> Color(0xFF1B873B)
-                else -> Color(0xFFD32F2F)
-            }
+            val color = TrendColors.forChange(change, MaterialTheme.colorScheme.onSurface)
             Column(Modifier.padding(16.dp)) {
-                Text(state.etf?.etf?.name ?: "—", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                Text(
+                    state.etf?.etf?.name ?: Format.EM_DASH,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(q?.price?.let { "%.2f".format(it) } ?: "—", style = MaterialTheme.typography.headlineMedium)
+                    Text(Format.price(q?.price), style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        text = "  " + (change?.let { (if (it >= 0) "+" else "") + "%.2f%%".format(it) } ?: ""),
+                        text = "  " + (change?.let { Format.signedPct(it) } ?: ""),
                         color = color,
                         style = MaterialTheme.typography.titleMedium,
                     )
@@ -113,7 +118,7 @@ fun DetailScreen(
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.etf?.etf?.sector?.let { AssistChip(onClick = {}, label = { Text(it) }) }
                     state.etf?.etf?.leverageFactor?.let { AssistChip(onClick = {}, label = { Text("${it}x") }) }
-                    q?.dividendYield?.let { AssistChip(onClick = {}, label = { Text("Yld %.2f%%".format(it)) }) }
+                    q?.dividendYield?.let { AssistChip(onClick = {}, label = { Text("Yld ${Format.pct(it)}") }) }
                 }
             }
             HorizontalDivider()
@@ -163,11 +168,11 @@ fun DetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.padding(end = 4.dp).background(Color(0xFF1B873B), RoundedCornerShape(2.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {}
+                        Box(Modifier.padding(end = 4.dp).background(TrendColors.bull, RoundedCornerShape(2.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {}
                         Text("Bullish", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.padding(end = 4.dp).background(Color(0xFFD32F2F), RoundedCornerShape(2.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {}
+                        Box(Modifier.padding(end = 4.dp).background(TrendColors.bear, RoundedCornerShape(2.dp)).padding(horizontal = 8.dp, vertical = 3.dp)) {}
                         Text("Bearish", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
@@ -197,7 +202,7 @@ fun DetailScreen(
             } else {
                 state.alerts.forEach { a ->
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("${a.direction} %.2f".format(a.threshold), Modifier.weight(1f))
+                        Text("${a.direction} ${Format.price(a.threshold)}", Modifier.weight(1f))
                         IconButton(onClick = { vm.removeAlert(a.id) }) { Icon(Icons.Filled.Delete, "Delete alert") }
                     }
                     HorizontalDivider()
@@ -262,23 +267,40 @@ private fun AlertDialogContent(
     onDismiss: () -> Unit,
 ) {
     var threshold by remember { mutableStateOf("") }
-    var direction by remember { mutableStateOf("above") }
+    var direction by remember { mutableStateOf(AlertEvaluator.DIRECTION_ABOVE) }
+    // Accepts a comma or a dot, so the value shown elsewhere can always be typed back in.
+    val parsed = Format.parseDecimal(threshold)
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(
-                enabled = threshold.toDoubleOrNull() != null,
-                onClick = { onConfirm(threshold.toDouble(), direction) },
+                enabled = parsed != null,
+                onClick = { parsed?.let { onConfirm(it, direction) } },
             ) { Icon(Icons.Filled.Add, null); Text(" Add") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         title = { Text("New price alert") },
         text = {
             Column {
-                OutlinedTextField(value = threshold, onValueChange = { threshold = it }, label = { Text("Threshold") }, singleLine = true)
+                OutlinedTextField(
+                    value = threshold,
+                    onValueChange = { threshold = it },
+                    label = { Text("Threshold") },
+                    singleLine = true,
+                    isError = threshold.isNotBlank() && parsed == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                )
                 Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(selected = direction == "above", onClick = { direction = "above" }, label = { Text("Above") })
-                    FilterChip(selected = direction == "below", onClick = { direction = "below" }, label = { Text("Below") })
+                    FilterChip(
+                        selected = direction == AlertEvaluator.DIRECTION_ABOVE,
+                        onClick = { direction = AlertEvaluator.DIRECTION_ABOVE },
+                        label = { Text("Above") },
+                    )
+                    FilterChip(
+                        selected = direction == AlertEvaluator.DIRECTION_BELOW,
+                        onClick = { direction = AlertEvaluator.DIRECTION_BELOW },
+                        label = { Text("Below") },
+                    )
                 }
             }
         },

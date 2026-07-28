@@ -5,14 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iurie.etfwatch.data.db.EtfWithQuote
 import com.iurie.etfwatch.data.db.PriceAlertEntity
+import com.iurie.etfwatch.data.repo.AddResult
 import com.iurie.etfwatch.data.repo.AlertRepository
 import com.iurie.etfwatch.data.repo.EtfRepository
 import com.iurie.etfwatch.data.repo.QuoteRepository
 import com.iurie.etfwatch.ui.common.ChartPoint
 import com.iurie.etfwatch.ui.common.ChartStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -49,6 +51,12 @@ class DetailViewModel @Inject constructor(
     private val chart = MutableStateFlow<List<ChartPoint>>(emptyList())
     private val loading = MutableStateFlow(false)
 
+    /** Tracks the in-flight chart load so a fast series of range taps can't resolve out of order. */
+    private var chartJob: Job? = null
+
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages
+
     private val chartState = combine(chartStyle, chart) { style, points -> style to points }
 
     val state: StateFlow<DetailUiState> =
@@ -58,19 +66,31 @@ class DetailViewModel @Inject constructor(
             range,
             chartState,
             loading,
-        ) { etf, alerts, r, chartState, l ->
-            val (style, c) = chartState
-            DetailUiState(ticker = ticker, etf = etf, range = r, chartStyle = style, chart = c, alerts = alerts, isLoadingChart = l)
+        ) { etf, alerts, r, chartState, isLoading ->
+            val (style, points) = chartState
+            DetailUiState(
+                ticker = ticker,
+                etf = etf,
+                range = r,
+                chartStyle = style,
+                chart = points,
+                alerts = alerts,
+                isLoadingChart = isLoading,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailUiState(ticker = ticker))
 
     init { setRange(Range.Y1) }
 
     fun setRange(r: Range) {
         range.value = r
-        viewModelScope.launch {
+        chartJob?.cancel()
+        chartJob = viewModelScope.launch {
             loading.value = true
-            chart.value = quoteRepo.history(ticker, r.days)
-            loading.value = false
+            try {
+                chart.value = quoteRepo.history(ticker, r.days)
+            } finally {
+                loading.value = false
+            }
         }
     }
 
@@ -78,12 +98,10 @@ class DetailViewModel @Inject constructor(
 
     fun addAlert(threshold: Double, direction: String) = viewModelScope.launch {
         alertRepo.upsert(PriceAlertEntity(ticker = ticker, threshold = threshold, direction = direction))
+        _messages.tryEmit("Alert set: $direction ${"%.2f".format(java.util.Locale.US, threshold)}")
     }
 
     fun removeAlert(id: Long) = viewModelScope.launch { alertRepo.delete(id) }
-
-    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
-    val messages: SharedFlow<String> = _messages
 
     fun toggleWatchlist() = viewModelScope.launch {
         val current = state.value.etf?.etf ?: return@launch
@@ -91,14 +109,10 @@ class DetailViewModel @Inject constructor(
             etfRepo.removeFromWatchlist(current.ticker)
             _messages.tryEmit("Removed ${current.ticker} from watchlist")
         } else {
-            etfRepo.addToWatchlist(current.ticker, current.name, current.exchange)
-            _messages.tryEmit("Added ${current.ticker} to watchlist")
+            when (val result = etfRepo.addToWatchlist(current.ticker, current.name, current.exchange)) {
+                is AddResult.Added -> _messages.tryEmit("Added ${result.ticker} to watchlist")
+                is AddResult.Rejected -> _messages.tryEmit(result.reason)
+            }
         }
-    }
-
-    fun addToWatchlist() = viewModelScope.launch {
-        val current = state.value.etf?.etf ?: return@launch
-        etfRepo.addToWatchlist(current.ticker, current.name, current.exchange)
-        _messages.tryEmit("Added ${current.ticker} to watchlist")
     }
 }

@@ -34,10 +34,22 @@
             </intent-filter>
         </activity>
 
+        <!--
+            WorkManager is configured manually via EtfApp (Configuration.Provider) so its
+            default initializer must not run. Remove only that meta-data entry — removing the
+            whole provider would also kill every other androidx.startup initializer, such as
+            ProfileInstaller's baseline profiles.
+        -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
-            tools:node="remove" />
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
     </application>
 </manifest>

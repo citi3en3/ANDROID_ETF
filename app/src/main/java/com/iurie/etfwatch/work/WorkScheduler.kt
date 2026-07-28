@@ -1,6 +1,7 @@
 package com.iurie.etfwatch.work
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -21,40 +22,39 @@ class WorkScheduler @Inject constructor(
     private val prefs: UserPrefs,
 ) {
 
+    private val workManager: WorkManager get() = WorkManager.getInstance(ctx)
+
+    private val networkConstraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
+
     suspend fun schedulePeriodicRefreshFromPrefs() {
         schedulePeriodicRefresh(prefs.refreshIntervalMinutes.first().toLong())
     }
 
-    fun schedulePeriodicRefresh(intervalMinutes: Long = 30L) {
-        val constraints = Constraints.Builder()
-            .setRequiredNetworkType(NetworkType.CONNECTED)
-            .build()
-
+    fun schedulePeriodicRefresh(intervalMinutes: Long = UserPrefs.DEFAULT_INTERVAL_MIN.toLong()) {
         val refresh = PeriodicWorkRequestBuilder<QuoteRefreshWorker>(intervalMinutes, TimeUnit.MINUTES)
-            .setConstraints(constraints)
+            .setConstraints(networkConstraints)
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 5, TimeUnit.MINUTES)
             .build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(
-            "quote_refresh",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            refresh,
-        )
+        workManager.enqueueUniquePeriodicWork(REFRESH_WORK, ExistingPeriodicWorkPolicy.UPDATE, refresh)
 
-        val alerts = PeriodicWorkRequestBuilder<AlertCheckWorker>(intervalMinutes, TimeUnit.MINUTES)
-            .setConstraints(constraints)
-            .build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork(
-            "alert_check",
-            ExistingPeriodicWorkPolicy.UPDATE,
-            alerts,
-        )
+        // Alerts used to run as their own periodic job; they are part of the refresh now, so
+        // retire the old one on installs that still have it enqueued.
+        workManager.cancelUniqueWork(LEGACY_ALERT_WORK)
     }
 
     fun runOnceNow() {
-        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-        WorkManager.getInstance(ctx).enqueueUniqueWork(
-            "quote_refresh_once",
-            ExistingWorkPolicy.REPLACE,
-            OneTimeWorkRequestBuilder<QuoteRefreshWorker>().setConstraints(constraints).build(),
+        workManager.enqueueUniqueWork(
+            ONE_SHOT_WORK,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<QuoteRefreshWorker>().setConstraints(networkConstraints).build(),
         )
+    }
+
+    private companion object {
+        const val REFRESH_WORK = "quote_refresh"
+        const val ONE_SHOT_WORK = "quote_refresh_once"
+        const val LEGACY_ALERT_WORK = "alert_check"
     }
 }

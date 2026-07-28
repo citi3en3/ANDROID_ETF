@@ -43,6 +43,12 @@ data class PriceAlertEntity(
     val direction: String,
     val enabled: Boolean = true,
     val lastTriggeredAt: Long? = null,
+    /**
+     * Hysteresis latch. An alert fires only while armed, then disarms; it re-arms once the price
+     * moves back to the safe side of the threshold. Without this an "above" alert on a rising ETF
+     * re-notifies on every refresh for as long as the condition holds.
+     */
+    val armed: Boolean = true,
 )
 
 data class EtfWithQuote(

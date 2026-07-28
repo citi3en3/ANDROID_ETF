@@ -4,7 +4,6 @@ import android.content.Context
 import com.iurie.etfwatch.BuildConfig
 import com.iurie.etfwatch.data.remote.FmpService
 import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -26,8 +25,15 @@ object NetworkModule {
 
     private const val BASE = "https://financialmodelingprep.com/api/v3/"
 
+    /** The API key rides in the query string, so it would otherwise be logged with every URL. */
+    private val API_KEY_IN_URL = Regex("(apikey=)[^&\\s]+")
+
+    /**
+     * Adapters come from moshi-kotlin-codegen (KSP), not reflection — every JSON-backed model
+     * carries `@JsonClass(generateAdapter = true)`.
+     */
     @Provides @Singleton
-    fun moshi(): Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
+    fun moshi(): Moshi = Moshi.Builder().build()
 
     @Provides @Singleton
     fun okHttp(@ApplicationContext ctx: Context): OkHttpClient {
@@ -39,7 +45,9 @@ object NetworkModule {
             val url = req.url.newBuilder().addQueryParameter("apikey", apiKey).build()
             chain.proceed(req.newBuilder().url(url).build())
         }
-        val logging = HttpLoggingInterceptor().apply {
+        val logging = HttpLoggingInterceptor { message ->
+            HttpLoggingInterceptor.Logger.DEFAULT.log(API_KEY_IN_URL.replace(message, "$1***"))
+        }.apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
         }
         return OkHttpClient.Builder()

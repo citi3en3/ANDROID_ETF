@@ -27,13 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Explore
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +37,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -68,8 +67,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.iurie.etfwatch.data.db.EtfWithQuote
 import com.iurie.etfwatch.ui.common.ChartPoint
+import com.iurie.etfwatch.ui.common.Format
 import com.iurie.etfwatch.ui.common.MiniCandleChart
 import com.iurie.etfwatch.ui.common.tickerBadgeColor
+import com.iurie.etfwatch.ui.theme.TrendColors
 import kotlinx.coroutines.delay
 
 private val HeroGreen = Color(0xFF0D3B2E)
@@ -83,11 +84,17 @@ fun HomeScreen(
     vm: HomeViewModel = hiltViewModel(),
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(vm) { vm.messages.collect { snackbarHostState.showSnackbar(it) } }
 
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { pad ->
     PullToRefreshBox(
         isRefreshing = state.isRefreshing,
         onRefresh = vm::refresh,
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize().padding(pad),
     ) {
         LazyColumn(
             modifier = Modifier
@@ -105,18 +112,18 @@ fun HomeScreen(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "ETF",
+                            "ETF Watch",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
                         )
                         Text(
-                            "Smart investing, diversified growth",
+                            "Your watchlist at a glance",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Filled.Notifications, "Notifications", tint = MaterialTheme.colorScheme.onSurface)
+                    IconButton(onClick = { onNavigate("settings") }) {
+                        Icon(Icons.Filled.Settings, "Settings", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 }
             }
@@ -139,10 +146,10 @@ fun HomeScreen(
                         .padding(horizontal = 8.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    QuickAction(Icons.Filled.Explore, "Explore ETFs") { onNavigate("leveraged") }
+                    QuickAction(Icons.Filled.BarChart, "Leveraged") { onNavigate("leveraged") }
                     QuickAction(Icons.Filled.Star, "Watchlist") { onNavigate("watchlist") }
-                    QuickAction(Icons.Filled.PieChart, "My Portfolio") { onNavigate("watchlist") }
-                    QuickAction(Icons.Filled.Settings, "Orders") { onNavigate("settings") }
+                    QuickAction(Icons.Filled.MonetizationOn, "Hamilton") { onNavigate("hamilton") }
+                    QuickAction(Icons.Filled.Settings, "Settings") { onNavigate("settings") }
                 }
                 Spacer(Modifier.height(24.dp))
             }
@@ -188,55 +195,8 @@ fun HomeScreen(
                 }
             }
 
-            // 5. Promo card
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                ) {
-                    Row(
-                        Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            Icons.Filled.BarChart,
-                            null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(56.dp),
-                        )
-                        Spacer(Modifier.width(16.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Diversify. Invest. Grow.",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "ETFs offer instant diversification, lower costs, and long-term growth.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            Button(
-                                onClick = { onNavigate("leveraged") },
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                            ) {
-                                Text("Explore ETFs", style = MaterialTheme.typography.labelLarge)
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(20.dp))
-            }
-
-            // 6. Your Portfolio
-            item { SectionHeader("Your Portfolio") { onNavigate("watchlist") } }
+            // 5. Watchlist
+            item { SectionHeader("Your Watchlist") { onNavigate("watchlist") } }
 
             if (state.watchlistItems.isEmpty()) {
                 item {
@@ -266,31 +226,6 @@ fun HomeScreen(
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         shape = RoundedCornerShape(16.dp),
                     ) {
-                        // Asset Allocation header
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                "Asset Allocation",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Box(
-                                Modifier
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                                    .padding(horizontal = 10.dp, vertical = 4.dp),
-                            ) {
-                                Text(
-                                    "By Asset Class",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.surfaceVariant)
                         state.watchlistItems.take(5).forEachIndexed { index, item ->
                             HomeEtfRow(
                                 item = item,
@@ -305,6 +240,7 @@ fun HomeScreen(
                 }
             }
         }
+    }
     }
 }
 
@@ -380,7 +316,8 @@ private fun WatchlistCarousel(
             val item = items.getOrNull(idx % items.size) ?: return@AnimatedContent
             val spark = sparklines[item.etf.ticker] ?: emptyList()
             val change = item.quote?.changePct
-            val changeColor = if ((change ?: 0.0) >= 0) HeroAccent else Color(0xFFFF6B6B)
+            // The hero card is always dark green, so these are fixed rather than theme-derived.
+            val changeColor = if ((change ?: 0.0) >= 0) HeroAccent else TrendColors.BearDark
 
             Card(
                 modifier = Modifier
@@ -434,15 +371,14 @@ private fun WatchlistCarousel(
                     Spacer(Modifier.height(16.dp))
                     // Price
                     Text(
-                        text = item.quote?.price?.let { "$%.2f".format(it) } ?: "—",
+                        text = Format.money(item.quote?.price),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
                     )
                     Spacer(Modifier.height(4.dp))
-                    val sign = if ((change ?: 0.0) >= 0) "+" else ""
                     Text(
-                        text = change?.let { "$sign${"%.2f".format(it)}% Today" } ?: "—",
+                        text = change?.let { "${Format.signedPct(it)} Today" } ?: Format.EM_DASH,
                         style = MaterialTheme.typography.bodySmall,
                         color = changeColor,
                     )
@@ -538,11 +474,7 @@ private fun SectionHeader(title: String, onSeeAll: () -> Unit) {
 @Composable
 private fun HomeEtfRow(item: EtfWithQuote, sparkline: List<ChartPoint>, onClick: () -> Unit) {
     val change = item.quote?.changePct
-    val changeColor = when {
-        change == null -> MaterialTheme.colorScheme.onSurfaceVariant
-        change >= 0 -> Color(0xFF1B873B)
-        else -> Color(0xFFD32F2F)
-    }
+    val changeColor = TrendColors.forChange(change, MaterialTheme.colorScheme.onSurfaceVariant)
     Row(
         Modifier
             .fillMaxWidth()
@@ -589,12 +521,12 @@ private fun HomeEtfRow(item: EtfWithQuote, sparkline: List<ChartPoint>, onClick:
         }
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                item.quote?.price?.let { "%.2f".format(it) } ?: "—",
+                Format.price(item.quote?.price),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                change?.let { "${if (it >= 0) "+" else ""}%.2f%%".format(it) } ?: "—",
+                Format.signedPct(change),
                 style = MaterialTheme.typography.bodySmall,
                 color = changeColor,
             )

@@ -20,6 +20,7 @@ object DbModule {
     @Provides @Singleton
     fun provideDb(@ApplicationContext ctx: Context): AppDatabase =
         Room.databaseBuilder(ctx, AppDatabase::class.java, "etfwatch.db")
+            .addMigrations(*AppDatabase.ALL_MIGRATIONS)
             .fallbackToDestructiveMigration()
             .build()
 

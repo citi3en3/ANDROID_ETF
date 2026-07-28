@@ -14,14 +14,19 @@ data class QuoteDto(
     val exchange: String?,
 )
 
+/**
+ * Subset of FMP's `/profile/{symbol}` payload. `isEtf` is the authoritative fund-type flag —
+ * `/search` returns stocks, mutual funds and trusts alongside ETFs with nothing to tell them
+ * apart, so this is what keeps non-ETFs out of the watchlist.
+ */
 @JsonClass(generateAdapter = true)
-data class EtfInfoDto(
+data class ProfileDto(
     val symbol: String,
-    val name: String?,
-    val expenseRatio: Double?,
-    val assetsUnderManagement: Double?,
-    val sector: String?,
-    @Json(name = "dividendYield") val dividendYield: Double?,
+    val companyName: String? = null,
+    val exchangeShortName: String? = null,
+    val isEtf: Boolean? = null,
+    val isFund: Boolean? = null,
+    val isActivelyTrading: Boolean? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -14,8 +14,8 @@ interface FmpService {
     @GET("quote/{symbols}")
     suspend fun quotes(@Path("symbols") commaSeparated: String): List<QuoteDto>
 
-    @GET("etf-info")
-    suspend fun etfInfo(@Query("symbol") symbol: String): List<EtfInfoDto>
+    @GET("profile/{symbol}")
+    suspend fun profile(@Path("symbol") symbol: String): List<ProfileDto>
 
     @GET("historical-price-full/{symbol}")
     suspend fun historical(

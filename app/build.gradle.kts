@@ -87,7 +87,7 @@ dependencies {
     implementation(libs.retrofit)
     implementation(libs.retrofit.moshi)
     implementation(libs.moshi)
-    implementation(libs.moshi.kotlin)
+    ksp(libs.moshi.kotlin.codegen)
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
 
@@ -96,12 +96,13 @@ dependencies {
 
     implementation(libs.mpandroidchart)
     implementation(libs.jsoup)
-    implementation(libs.coil.compose)
     implementation(libs.datastore.preferences)
     implementation(libs.timber)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
+    testImplementation(libs.coroutines.test)
+    testImplementation(libs.jsoup)
     androidTestImplementation(libs.androidx.test.runner)
 }

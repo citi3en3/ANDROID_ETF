@@ -2,24 +2,30 @@ package com.iurie.etfwatch.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.iurie.etfwatch.ui.common.ChartPoint
 import com.iurie.etfwatch.data.db.EtfWithQuote
 import com.iurie.etfwatch.data.repo.EtfRepository
 import com.iurie.etfwatch.data.repo.QuoteRepository
+import com.iurie.etfwatch.ui.common.ChartPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
+/**
+ * No portfolio totals here on purpose. The app stores no share quantities, so any "total value"
+ * would be the sum of one share of each watchlist entry — mixing USD and CAD prices — and the
+ * "total change" an unweighted average percentage applied to it. Both looked authoritative and
+ * were meaningless, so they are gone rather than merely relabelled.
+ */
 data class HomeUiState(
-    val totalValue: Double = 0.0,
-    val totalChangePct: Double = 0.0,
-    val totalChangeDollar: Double = 0.0,
     val watchlistItems: List<EtfWithQuote> = emptyList(),
     val topEtfs: List<EtfWithQuote> = emptyList(),
     val sparklines: Map<String, List<ChartPoint>> = emptyMap(),
@@ -35,27 +41,20 @@ class HomeViewModel @Inject constructor(
     private val refreshing = MutableStateFlow(false)
     private val sparklines = MutableStateFlow<Map<String, List<ChartPoint>>>(emptyMap())
 
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages
+
     val state: StateFlow<HomeUiState> = combine(
         etfRepo.watchlist(),
         etfRepo.leveraged(),
         sparklines,
         refreshing,
-    ) { watchlist, leveraged, sparks, r ->
-        val topEtfs = leveraged.take(5)
-        val totalValue = watchlist.sumOf { it.quote?.price ?: 0.0 }
-        val changeItems = watchlist.filter { it.quote?.changePct != null }
-        val avgChangePct =
-            if (changeItems.isEmpty()) 0.0
-            else changeItems.sumOf { it.quote!!.changePct!! } / changeItems.size
-        val totalChangeDollar = totalValue * avgChangePct / 100.0
+    ) { watchlist, leveraged, sparks, isRefreshing ->
         HomeUiState(
-            totalValue = totalValue,
-            totalChangePct = avgChangePct,
-            totalChangeDollar = totalChangeDollar,
             watchlistItems = watchlist,
-            topEtfs = topEtfs,
+            topEtfs = leveraged.take(TOP_ETF_COUNT),
             sparklines = sparks,
-            isRefreshing = r,
+            isRefreshing = isRefreshing,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -67,28 +66,31 @@ class HomeViewModel @Inject constructor(
         if (refreshing.value) return
         refreshing.value = true
         viewModelScope.launch {
-            try { etfRepo.refreshAll() } catch (_: Exception) {}
+            runCatching { etfRepo.refreshAll() }
+                .onFailure { _messages.tryEmit("Refresh failed — check your connection") }
             fetchSparklines()
             refreshing.value = false
         }
     }
 
+    /** Sparkline history is one call per ticker, so fetch them concurrently and cap the fan-out. */
     private suspend fun fetchSparklines() {
-        try {
-            val leveraged = etfRepo.leveraged().first()
+        runCatching {
+            val leveraged = etfRepo.leveraged().first().take(TOP_ETF_COUNT)
             val watchlist = etfRepo.watchlist().first()
-            
-            // Fetch for top 5 leveraged AND all watchlist items
-            val tickersToFetch = (leveraged.take(5) + watchlist).map { it.etf.ticker }.distinct()
-            
-            val result = mutableMapOf<String, List<ChartPoint>>()
-            tickersToFetch.forEach { ticker ->
-                try {
-                    val pts = quoteRepo.history(ticker, 30)
-                    if (pts.isNotEmpty()) result[ticker] = pts
-                } catch (_: Exception) {}
-            }
-            sparklines.value = result
-        } catch (_: Exception) {}
+            val tickers = (leveraged + watchlist)
+                .map { it.etf.ticker }
+                .distinct()
+                .take(MAX_SPARKLINES)
+            sparklines.value = quoteRepo.histories(tickers, SPARKLINE_DAYS)
+        }.onFailure { Timber.w(it, "Sparkline fetch failed") }
+    }
+
+    private companion object {
+        const val TOP_ETF_COUNT = 5
+        const val SPARKLINE_DAYS = 30
+
+        /** Upper bound on per-ticker history calls made just to draw thumbnails. */
+        const val MAX_SPARKLINES = 20
     }
 }

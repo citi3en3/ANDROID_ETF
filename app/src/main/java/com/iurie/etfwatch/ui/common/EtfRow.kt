@@ -2,7 +2,6 @@ package com.iurie.etfwatch.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.iurie.etfwatch.data.db.EtfWithQuote
+import com.iurie.etfwatch.ui.theme.TrendColors
 import kotlin.math.abs
 
 private val BADGE_COLORS = listOf(
@@ -42,11 +42,7 @@ fun EtfRow(
     highlight: SortMode? = null,
 ) {
     val change = item.quote?.changePct
-    val changeColor = when {
-        change == null -> MaterialTheme.colorScheme.onSurfaceVariant
-        change >= 0 -> Color(0xFF1B873B)
-        else -> Color(0xFFD32F2F)
-    }
+    val changeColor = TrendColors.forChange(change, MaterialTheme.colorScheme.onSurfaceVariant)
     Row(
         Modifier
             .fillMaxWidth()
@@ -54,7 +50,6 @@ fun EtfRow(
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Colored ticker badge
         Box(
             modifier = Modifier
                 .size(48.dp)
@@ -72,7 +67,6 @@ fun EtfRow(
             )
         }
         Spacer(Modifier.width(12.dp))
-        // Ticker + name + metadata
         Column(Modifier.weight(1f)) {
             Text(item.etf.ticker, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
             Text(
@@ -84,7 +78,7 @@ fun EtfRow(
             )
             val meta = buildList {
                 item.etf.sector?.let { add(it) }
-                if (item.etf.isLeveraged && item.etf.leverageFactor != null) add("${item.etf.leverageFactor}x")
+                item.etf.leverageFactor?.takeIf { item.etf.isLeveraged }?.let { add("${it}x") }
             }
             if (meta.isNotEmpty()) {
                 Text(
@@ -101,9 +95,7 @@ fun EtfRow(
             val returns = returnPeriods(item, highlight)
             if (returns.isNotEmpty()) {
                 Text(
-                    returns.joinToString("  ") { (label, v) ->
-                        "$label ${if (v >= 0) "+" else ""}${"%.2f".format(v)}%"
-                    },
+                    returns.joinToString("  ") { (label, v) -> "$label ${Format.signedPct(v)}" },
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -116,18 +108,18 @@ fun EtfRow(
         // Price + change (+ the sorted return, so it reads next to the value it ranked on)
         Column(horizontalAlignment = Alignment.End) {
             Text(
-                item.quote?.price?.let { "%.2f".format(it) } ?: "—",
+                Format.price(item.quote?.price),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                change?.let { "${if (it >= 0) "+" else ""}%.2f%%".format(it) } ?: "—",
+                Format.signedPct(change),
                 style = MaterialTheme.typography.bodySmall,
                 color = changeColor,
             )
             item.quote?.dividendYield?.let { y ->
                 Text(
-                    "Yld %.2f%%".format(y),
+                    "Yld ${Format.pct(y)}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -136,10 +128,10 @@ fun EtfRow(
             }
             highlightedReturn(item, highlight)?.let { (label, v) ->
                 Text(
-                    "$label ${if (v >= 0) "+" else ""}${"%.2f".format(v)}%",
+                    "$label ${Format.signedPct(v)}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (v >= 0) Color(0xFF1B873B) else Color(0xFFD32F2F),
+                    color = if (v >= 0) TrendColors.bull else TrendColors.bear,
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
@@ -149,32 +141,14 @@ fun EtfRow(
 
 /** Label + value for the period the list is currently sorted by, if it is a return period. */
 private fun highlightedReturn(item: EtfWithQuote, highlight: SortMode?): Pair<String, Double>? {
-    val q = item.quote ?: return null
-    val value = when (highlight) {
-        SortMode.Week1Return -> q.week1ReturnPct
-        SortMode.Week2Return -> q.week2ReturnPct
-        SortMode.Week3Return -> q.week3ReturnPct
-        SortMode.Week5Return -> q.week5ReturnPct
-        SortMode.MonthReturn -> q.monthReturnPct
-        SortMode.TwoMonthReturn -> q.twoMonthReturnPct
-        else -> null
-    } ?: return null
-    return highlight!!.label.removeSuffix(" %") to value
+    val value = EtfSorting.returnFor(item, highlight) ?: return null
+    return (highlight ?: return null).shortLabel to value
 }
 
 /** All available return periods, with the sorted one moved to the front. */
 private fun returnPeriods(item: EtfWithQuote, highlight: SortMode?): List<Pair<String, Double>> {
-    val q = item.quote ?: return emptyList()
-    val all = listOf(
-        SortMode.Week1Return to q.week1ReturnPct,
-        SortMode.Week2Return to q.week2ReturnPct,
-        SortMode.Week3Return to q.week3ReturnPct,
-        SortMode.Week5Return to q.week5ReturnPct,
-        SortMode.MonthReturn to q.monthReturnPct,
-        SortMode.TwoMonthReturn to q.twoMonthReturnPct,
-    )
-    return all
-        .sortedByDescending { (mode, _) -> mode == highlight }
-        .mapNotNull { (mode, v) -> v?.let { mode.label.removeSuffix(" %") to it } }
+    if (item.quote == null) return emptyList()
+    return EtfSorting.RETURN_MODES
+        .sortedByDescending { it == highlight }
+        .mapNotNull { mode -> EtfSorting.returnFor(item, mode)?.let { mode.shortLabel to it } }
 }
-

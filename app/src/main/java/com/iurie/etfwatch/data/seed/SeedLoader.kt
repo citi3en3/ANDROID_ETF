@@ -4,11 +4,13 @@ import android.content.Context
 import com.iurie.etfwatch.data.db.EtfDao
 import com.iurie.etfwatch.data.db.EtfEntity
 import com.iurie.etfwatch.data.filter.EtnFilter
+import com.iurie.etfwatch.data.remote.FmpSymbols
 import com.squareup.moshi.JsonClass
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.Types
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,8 +27,8 @@ data class SeedEntry(
 class SeedLoader @Inject constructor(
     @ApplicationContext private val ctx: Context,
     private val etfDao: EtfDao,
+    moshi: Moshi,
 ) {
-    private val moshi: Moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
     private val listType = Types.newParameterizedType(List::class.java, SeedEntry::class.java)
     private val adapter = moshi.adapter<List<SeedEntry>>(listType)
 
@@ -38,19 +40,23 @@ class SeedLoader @Inject constructor(
     }
 
     private suspend fun load(asset: String, isHamilton: Boolean, isLeveraged: Boolean) {
-        val json = ctx.assets.open(asset).bufferedReader().use { it.readText() }
-        val entries: List<SeedEntry> = adapter.fromJson(json).orEmpty()
-        val rows = entries.filterNot { EtnFilter.isEtn(it.ticker, it.name) }.map {
-            EtfEntity(
-                ticker = it.ticker,
-                name = it.name,
-                exchange = it.exchange,
-                sector = it.sector,
-                isLeveraged = isLeveraged,
-                leverageFactor = it.leverageFactor,
-                isHamilton = isHamilton,
-            )
+        val entries: List<SeedEntry> = withContext(Dispatchers.IO) {
+            val json = ctx.assets.open(asset).bufferedReader().use { it.readText() }
+            adapter.fromJson(json).orEmpty()
         }
+        val rows = entries
+            .filterNot { EtnFilter.isEtn(it.ticker, it.name) }
+            .map {
+                EtfEntity(
+                    ticker = FmpSymbols.normalize(it.ticker),
+                    name = it.name,
+                    exchange = it.exchange,
+                    sector = it.sector,
+                    isLeveraged = isLeveraged,
+                    leverageFactor = it.leverageFactor,
+                    isHamilton = isHamilton,
+                )
+            }
         etfDao.insertAllIgnore(rows)
     }
 }

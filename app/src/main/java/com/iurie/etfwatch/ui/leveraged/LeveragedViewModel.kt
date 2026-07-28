@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iurie.etfwatch.data.db.EtfWithQuote
 import com.iurie.etfwatch.data.repo.EtfRepository
+import com.iurie.etfwatch.ui.common.EtfSorting
 import com.iurie.etfwatch.ui.common.SortMode
-import com.iurie.etfwatch.work.WorkScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -19,67 +21,38 @@ data class LeveragedUiState(
     val grouped: Map<String, List<EtfWithQuote>> = emptyMap(),
     val flat: List<EtfWithQuote> = emptyList(),
     val sort: SortMode = SortMode.Sector,
-    val filters: Set<SortMode> = setOf(
-        SortMode.Inverse, SortMode.NonInverse,
-        SortMode.Lev1x, SortMode.Lev2x, SortMode.Lev3x,
-    ),
+    val filters: Set<SortMode> = DEFAULT_LEV_FILTERS,
     val isRefreshing: Boolean = false,
 )
 
 private val DIRECTION_FILTERS = setOf(SortMode.Inverse, SortMode.NonInverse)
 private val MAGNITUDE_FILTERS = setOf(SortMode.Lev1x, SortMode.Lev2x, SortMode.Lev3x)
-private val DEFAULT_LEV_FILTERS = DIRECTION_FILTERS + MAGNITUDE_FILTERS
+internal val DEFAULT_LEV_FILTERS = DIRECTION_FILTERS + MAGNITUDE_FILTERS
+private const val UNCLASSIFIED = "Other"
 
 @HiltViewModel
 class LeveragedViewModel @Inject constructor(
     private val repo: EtfRepository,
-    private val scheduler: WorkScheduler,
 ) : ViewModel() {
 
     private val refreshing = MutableStateFlow(false)
     private val sort = MutableStateFlow(SortMode.Sector)
     private val filters = MutableStateFlow(DEFAULT_LEV_FILTERS)
 
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages
+
     val state: StateFlow<LeveragedUiState> =
         combine(repo.leveraged(), sort, filters, refreshing) { list, s, f, r ->
-            val includeInverse = SortMode.Inverse in f
-            val includeNonInverse = SortMode.NonInverse in f
-            val allowedMagnitudes = buildSet {
-                if (SortMode.Lev1x in f) add(1)
-                if (SortMode.Lev2x in f) add(2)
-                if (SortMode.Lev3x in f) add(3)
-            }
-            val byDirection = when {
-                includeInverse && includeNonInverse -> list
-                includeInverse -> list.filter { (it.etf.leverageFactor ?: 0) < 0 }
-                includeNonInverse -> list.filter { (it.etf.leverageFactor ?: 0) >= 0 }
-                else -> emptyList()
-            }
-            val filtered = if (allowedMagnitudes.isEmpty()) emptyList() else byDirection.filter {
-                val mag = kotlin.math.abs(it.etf.leverageFactor ?: 1)
-                mag in allowedMagnitudes
-            }
-
-            val sortedFlat = when (s) {
-                SortMode.MonthReturn -> filtered.sortedByDescending { it.quote?.monthReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.TwoMonthReturn -> filtered.sortedByDescending { it.quote?.twoMonthReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week1Return -> filtered.sortedByDescending { it.quote?.week1ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week2Return -> filtered.sortedByDescending { it.quote?.week2ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week3Return -> filtered.sortedByDescending { it.quote?.week3ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week5Return -> filtered.sortedByDescending { it.quote?.week5ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Ticker -> filtered.sortedBy { it.etf.ticker }
-                SortMode.Price -> filtered.sortedByDescending { it.quote?.price ?: Double.NEGATIVE_INFINITY }
-                SortMode.ChangePct -> filtered.sortedByDescending { it.quote?.changePct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Yield -> filtered.sortedByDescending { it.quote?.dividendYield ?: Double.NEGATIVE_INFINITY }
-                SortMode.Sector -> filtered
-                SortMode.Inverse,
-                SortMode.NonInverse,
-                SortMode.Lev1x,
-                SortMode.Lev2x,
-                SortMode.Lev3x -> filtered.sortedBy { it.etf.ticker }
-            }
-            val grouped = if (s == SortMode.Sector) sortedFlat.groupBy { it.etf.sector ?: "Other" } else emptyMap()
-            LeveragedUiState(grouped = grouped, flat = sortedFlat, sort = s, filters = f, isRefreshing = r)
+            val filtered = applyFilters(list, f)
+            val sortedFlat = EtfSorting.sort(filtered, s)
+            LeveragedUiState(
+                grouped = if (s == SortMode.Sector) sortedFlat.groupBy { it.etf.sector ?: UNCLASSIFIED } else emptyMap(),
+                flat = sortedFlat,
+                sort = s,
+                filters = f,
+                isRefreshing = r,
+            )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LeveragedUiState())
 
     fun setSort(mode: SortMode) { sort.value = mode }
@@ -91,13 +64,35 @@ class LeveragedViewModel @Inject constructor(
         }
     }
 
+    /** One refresh per pull; this used to run the repository call and a duplicate worker job. */
     fun refresh() {
         if (refreshing.value) return
         refreshing.value = true
         viewModelScope.launch {
             runCatching { repo.refreshAll() }
-            scheduler.runOnceNow()
+                .onFailure { _messages.tryEmit("Refresh failed — check your connection") }
             refreshing.value = false
         }
+    }
+}
+
+/**
+ * Direction and magnitude are independent filters: a fund must pass both. A fund with no declared
+ * leverage factor has unknown magnitude and is excluded from magnitude filtering rather than being
+ * silently counted as 1x.
+ */
+internal fun applyFilters(items: List<EtfWithQuote>, filters: Set<SortMode>): List<EtfWithQuote> {
+    val includeInverse = SortMode.Inverse in filters
+    val includeNonInverse = SortMode.NonInverse in filters
+    val allowedMagnitudes = buildSet {
+        if (SortMode.Lev1x in filters) add(1)
+        if (SortMode.Lev2x in filters) add(2)
+        if (SortMode.Lev3x in filters) add(3)
+    }
+    if (allowedMagnitudes.isEmpty()) return emptyList()
+
+    return items.filter { item ->
+        val directionOk = if (EtfSorting.isInverse(item)) includeInverse else includeNonInverse
+        directionOk && EtfSorting.magnitude(item) in allowedMagnitudes
     }
 }

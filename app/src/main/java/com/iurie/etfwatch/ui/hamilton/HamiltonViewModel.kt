@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.iurie.etfwatch.data.db.EtfWithQuote
 import com.iurie.etfwatch.data.repo.EtfRepository
+import com.iurie.etfwatch.ui.common.EtfSorting
 import com.iurie.etfwatch.ui.common.SortMode
-import com.iurie.etfwatch.work.WorkScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,38 +26,28 @@ data class HamiltonUiState(
     val isRefreshing: Boolean = false,
 )
 
+private const val UNCLASSIFIED = "Other"
+
 @HiltViewModel
 class HamiltonViewModel @Inject constructor(
     private val repo: EtfRepository,
-    private val scheduler: WorkScheduler,
 ) : ViewModel() {
 
     private val refreshing = MutableStateFlow(false)
     private val sort = MutableStateFlow(SortMode.Sector)
     private val sectorFilters = MutableStateFlow<Set<String>>(emptySet())
 
+    private val _messages = MutableSharedFlow<String>(extraBufferCapacity = 4)
+    val messages: SharedFlow<String> = _messages
+
     val state: StateFlow<HamiltonUiState> =
         combine(repo.hamilton(), sort, sectorFilters, refreshing) { items, s, sf, r ->
-            val sectors = items.map { it.etf.sector ?: "Other" }.distinct().sorted()
+            val sectors = items.map { it.etf.sector ?: UNCLASSIFIED }.distinct().sorted()
             val effectiveFilter = if (sf.isEmpty()) sectors.toSet() else sf
-            val filtered = items.filter { (it.etf.sector ?: "Other") in effectiveFilter }
-            val sortedFlat = when (s) {
-                SortMode.MonthReturn -> filtered.sortedByDescending { it.quote?.monthReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.TwoMonthReturn -> filtered.sortedByDescending { it.quote?.twoMonthReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week1Return -> filtered.sortedByDescending { it.quote?.week1ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week2Return -> filtered.sortedByDescending { it.quote?.week2ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week3Return -> filtered.sortedByDescending { it.quote?.week3ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Week5Return -> filtered.sortedByDescending { it.quote?.week5ReturnPct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Ticker -> filtered.sortedBy { it.etf.ticker }
-                SortMode.Price -> filtered.sortedByDescending { it.quote?.price ?: Double.NEGATIVE_INFINITY }
-                SortMode.ChangePct -> filtered.sortedByDescending { it.quote?.changePct ?: Double.NEGATIVE_INFINITY }
-                SortMode.Yield -> filtered.sortedByDescending { it.quote?.dividendYield ?: Double.NEGATIVE_INFINITY }
-                SortMode.Sector -> filtered
-                else -> filtered.sortedBy { it.etf.ticker }
-            }
-            val grouped = if (s == SortMode.Sector) sortedFlat.groupBy { it.etf.sector ?: "Other" } else emptyMap()
+            val filtered = items.filter { (it.etf.sector ?: UNCLASSIFIED) in effectiveFilter }
+            val sortedFlat = EtfSorting.sort(filtered, s)
             HamiltonUiState(
-                grouped = grouped,
+                grouped = if (s == SortMode.Sector) sortedFlat.groupBy { it.etf.sector ?: UNCLASSIFIED } else emptyMap(),
                 flat = sortedFlat,
                 sort = s,
                 availableSectors = sectors,
@@ -72,12 +64,16 @@ class HamiltonViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Runs the refresh once. It used to call the repository *and* enqueue a worker that ran the
+     * same refresh again — double the FMP calls, and two interleaved passes writing the same rows.
+     */
     fun refresh() {
         if (refreshing.value) return
         refreshing.value = true
         viewModelScope.launch {
             runCatching { repo.refreshHamilton() }
-            scheduler.runOnceNow()
+                .onFailure { _messages.tryEmit("Refresh failed — check your connection") }
             refreshing.value = false
         }
     }

@@ -5,12 +5,15 @@ import com.iurie.etfwatch.data.db.QuoteEntity
 import com.iurie.etfwatch.data.remote.FmpService
 import com.iurie.etfwatch.data.remote.HistoricalPoint
 import com.iurie.etfwatch.ui.common.ChartPoint
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import timber.log.Timber
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,7 +23,7 @@ class QuoteRepository @Inject constructor(
     private val fmp: FmpService,
 ) {
 
-    /** FMP supports comma-separated symbols on /quote — batch to stay within free-tier limits. */
+    /** FMP supports comma-separated symbols on /quote — batch to keep the call count down. */
     suspend fun refresh(tickers: List<String>) {
         if (tickers.isEmpty()) return
         tickers.chunked(BATCH_SIZE).forEach { chunk ->
@@ -44,7 +47,7 @@ class QuoteRepository @Inject constructor(
                             updatedAt = now,
                         )
                     }
-                    quoteDao.upsertAll(rows)
+                    if (rows.isNotEmpty()) quoteDao.upsertAll(rows)
                 }
                 .onFailure { Timber.w(it, "FMP quotes batch failed for $chunk") }
         }
@@ -54,6 +57,7 @@ class QuoteRepository @Inject constructor(
         val to = LocalDate.now(ZoneOffset.UTC)
         val from = to.minusDays(days.toLong())
         return runCatching { fmp.historical(ticker, from.toString(), to.toString()) }
+            .onFailure { Timber.w(it, "FMP historical failed for $ticker") }
             .getOrNull()
             ?.historical
             ?.sortedBy { it.date }
@@ -70,6 +74,18 @@ class QuoteRepository @Inject constructor(
             }
             .orEmpty()
     }
+
+    /** Fetches several tickers' history concurrently, bounded so a big watchlist can't flood FMP. */
+    suspend fun histories(tickers: List<String>, days: Int): Map<String, List<ChartPoint>> =
+        coroutineScope {
+            if (tickers.isEmpty()) return@coroutineScope emptyMap()
+            val gate = Semaphore(MAX_CONCURRENT_HISTORY)
+            tickers.distinct()
+                .map { t -> async { t to gate.withPermit { history(t, days) } } }
+                .awaitAll()
+                .filter { it.second.isNotEmpty() }
+                .toMap()
+        }
 
     suspend fun deleteQuotes(tickers: List<String>) {
         if (tickers.isNotEmpty()) quoteDao.deleteTickers(tickers)
@@ -88,48 +104,57 @@ class QuoteRepository @Inject constructor(
 
     /**
      * Fetches 1W/2W/3W/5W/1M/2M return from FMP's historical daily closes.
-     * One call per ticker (FMP has no batch historical endpoint), parallelized via async/awaitAll.
+     * One call per ticker (FMP has no batch historical endpoint), bounded-parallel.
      */
     suspend fun refreshReturnsFromFmp(tickers: List<String>) = coroutineScope {
         if (tickers.isEmpty()) return@coroutineScope
         val now = System.currentTimeMillis()
         val to = LocalDate.now(ZoneOffset.UTC)
-        val from = to.minusDays(75) // buffer past 60 days to cover weekends/holidays
+        val from = to.minusDays(HISTORY_LOOKBACK_DAYS) // buffer past 60 days to cover weekends/holidays
         val nowEpochDay = to.toEpochDay()
+        val gate = Semaphore(MAX_CONCURRENT_HISTORY)
+
         val rows = tickers.map { t ->
             async {
                 runCatching {
                     val existing = quoteDao.byTicker(t) ?: return@async null
                     val price = existing.price ?: return@async null
-                    val series = fmp.historical(t, from.toString(), to.toString()).historical.orEmpty()
-                        .mapNotNull { p -> runCatching { LocalDate.parse(p.date.take(10)).toEpochDay() to p.close }.getOrNull() }
-                    if (series.isEmpty()) return@async null
-                    fun returnSince(daysAgo: Long): Double? {
-                        val targetDay = nowEpochDay - daysAgo
-                        val close = series.minByOrNull { kotlin.math.abs(it.first - targetDay) }?.second
-                        return if (close != null && close > 0.0) ((price - close) / close) * 100.0 else null
+                    val series = gate.withPermit {
+                        fmp.historical(t, from.toString(), to.toString()).historical.orEmpty()
+                    }.mapNotNull { p ->
+                        runCatching { LocalDate.parse(p.date.take(10)).toEpochDay() to p.close }.getOrNull()
                     }
+                    if (series.isEmpty()) return@async null
+
+                    fun ret(daysAgo: Long) =
+                        ReturnCalculator.returnPct(series, nowEpochDay, daysAgo, price)
+
                     existing.copy(
-                        monthReturnPct = returnSince(30) ?: existing.monthReturnPct,
-                        twoMonthReturnPct = returnSince(60) ?: existing.twoMonthReturnPct,
-                        week1ReturnPct = returnSince(7) ?: existing.week1ReturnPct,
-                        week2ReturnPct = returnSince(14) ?: existing.week2ReturnPct,
-                        week3ReturnPct = returnSince(21) ?: existing.week3ReturnPct,
-                        week5ReturnPct = returnSince(35) ?: existing.week5ReturnPct,
+                        monthReturnPct = ret(30) ?: existing.monthReturnPct,
+                        twoMonthReturnPct = ret(60) ?: existing.twoMonthReturnPct,
+                        week1ReturnPct = ret(7) ?: existing.week1ReturnPct,
+                        week2ReturnPct = ret(14) ?: existing.week2ReturnPct,
+                        week3ReturnPct = ret(21) ?: existing.week3ReturnPct,
+                        week5ReturnPct = ret(35) ?: existing.week5ReturnPct,
                         updatedAt = now,
                     )
                 }.onFailure { Timber.w(it, "FMP historical failed for $t") }.getOrNull()
             }
         }.awaitAll().filterNotNull()
+
         if (rows.isNotEmpty()) quoteDao.upsertAll(rows)
     }
 
     companion object {
         private const val BATCH_SIZE = 50
+        private const val HISTORY_LOOKBACK_DAYS = 75L
+
+        /** Keeps a large watchlist from opening one connection per ticker at once. */
+        private const val MAX_CONCURRENT_HISTORY = 8
 
         private fun formatChartDate(raw: String): String = runCatching {
             val d = LocalDate.parse(raw.take(10))
-            "%02d/%02d".format(d.monthValue, d.dayOfMonth)
+            "%02d/%02d".format(Locale.US, d.monthValue, d.dayOfMonth)
         }.getOrDefault(raw)
     }
 }

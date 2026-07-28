@@ -112,8 +112,13 @@ interface AlertDao {
     @Query("SELECT * FROM alerts WHERE ticker = :ticker")
     fun forTickerFlow(ticker: String): Flow<List<PriceAlertEntity>>
 
-    @Query("UPDATE alerts SET lastTriggeredAt = :ts WHERE id = :id")
+    /** Fires the alert and disarms it so it cannot re-notify while the condition still holds. */
+    @Query("UPDATE alerts SET lastTriggeredAt = :ts, armed = 0 WHERE id = :id")
     suspend fun markTriggered(id: Long, ts: Long)
+
+    /** Re-arms once the price has moved back to the safe side of the threshold. */
+    @Query("UPDATE alerts SET armed = 1 WHERE id = :id")
+    suspend fun rearm(id: Long)
 
     @Query("DELETE FROM alerts WHERE id = :id")
     suspend fun delete(id: Long)
